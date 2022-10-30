@@ -4,6 +4,7 @@
 
 namespace VladimirYuldashev\LaravelQueueRabbitMQ\Queue;
 
+use Carbon\Carbon;
 use ErrorException;
 use Exception;
 use Illuminate\Contracts\Queue\Queue as QueueContract;
