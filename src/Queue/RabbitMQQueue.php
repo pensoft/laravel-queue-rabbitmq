@@ -9,6 +9,7 @@ use Exception;
 use Illuminate\Contracts\Queue\Queue as QueueContract;
 use Illuminate\Queue\Queue;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Str;
 use JsonException;
 use PhpAmqpLib\Channel\AMQPChannel;
@@ -120,9 +121,9 @@ class RabbitMQQueue extends Queue implements QueueContract
      *
      * @throws AMQPProtocolChannelException
      */
-    public function push($job, $data = '', $queue = null)
+    public function push($job, $data = '', $queue = null, array $options = [])
     {
-        return $this->pushRaw($this->createPayload($job, $queue, $data), $queue, []);
+        return $this->pushRaw($this->createPayload($job, $queue, $data), $queue, $options);
     }
 
     /**
@@ -215,7 +216,7 @@ class RabbitMQQueue extends Queue implements QueueContract
         [$message, $correlationId] = $this->createMessage($payload, $attempts);
 
         // Publish directly on the delayQueue, no need to publish trough an exchange.
-        $this->channel->basic_publish($message, null, $destination, true, false);
+        $this->channel->basic_publish($message, null, $destination, false, false);
 
         return $correlationId;
     }
@@ -586,7 +587,7 @@ class RabbitMQQueue extends Queue implements QueueContract
      * @return array
      * @throws JsonException
      */
-    protected function createMessage($payload, int $attempts = 0): array
+    protected function createMessage($payload, int $attempts = 0, $options = []): array
     {
         $properties = [
             'content_type' => 'application/json',
@@ -892,7 +893,7 @@ class RabbitMQQueue extends Queue implements QueueContract
         $queue = $this->getQueue($queue);
         $attempts = Arr::get($options, 'attempts') ?: 0;
 
-        $destination = $this->getRoutingKey($queue);
+        $destination = $this->getRoutingKey($queue, $options);
         $exchange = $this->getExchange(Arr::get($options, 'exchange'));
         $exchangeType = $this->getExchangeType(Arr::get($options, 'exchange_type'));
 
