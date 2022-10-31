@@ -159,7 +159,7 @@ class RabbitMQQueue extends Queue implements QueueContract
             ], ...$data];
 
             Redis::transaction(function ($redis) use ($correlationId, $options, $data) {
-                $redis->setex('task:' . $correlationId, 60 * 60 * 24 * 30, $this->serialize($options['user']->id));
+                $redis->setex('task:' . $correlationId, 60 * 60 * 24 * 30, $options['user']->id);
                 $redis->set('user:' . $options['user']->id, $this->serialize($data));
             });
         }
