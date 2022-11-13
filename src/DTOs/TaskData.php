@@ -1,6 +1,6 @@
 <?php
 
-namespace App\DTOs;
+namespace VladimirYuldashev\LaravelQueueRabbitMQ\DTOs;
 
 use Carbon\Carbon;
 use Spatie\DataTransferObject\DataTransferObject;
