@@ -151,12 +151,12 @@ class RabbitMQQueue extends Queue implements QueueContract
             } else {
                 $data = [];
             }
-            $data = [[
+            $data = [new TaskData([
                 'task_id' => $correlationId,
                 'status' => 'PENDING',
+                'type' => $options['taskType'] ?? 'default',
                 'created_at' => Carbon::now(),
-                'updated_at' => null
-            ], ...$data];
+            ]), ...$data];
 
             Redis::transaction(function ($redis) use ($correlationId, $options, $data) {
                 $redis->setex('task:' . $correlationId, 60 * 60 * 24 * 30, $options['user']->id);
