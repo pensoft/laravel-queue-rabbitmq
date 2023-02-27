@@ -146,7 +146,7 @@ class Consumer extends Worker
             } catch (AMQPRuntimeException $exception) {
                 $this->exceptions->report($exception);
 
-                $this->kill(1);
+                $this->kill(1, $options);
             } catch (Exception | Throwable $exception) {
                 $this->exceptions->report($exception);
 
@@ -170,7 +170,7 @@ class Consumer extends Worker
             );
 
             if (! is_null($status)) {
-                return $this->stop($status);
+                return $this->stop($status, $options);
             }
 
             $this->currentJob = null;
@@ -196,12 +196,12 @@ class Consumer extends Worker
      * @param  int  $status
      * @return int
      */
-    public function stop($status = 0): int
+    public function stop($status = 0, $options = null): int
     {
         // Tell the server you are going to stop consuming.
         // It will finish up the last message and not send you any more.
         $this->channel->basic_cancel($this->consumerTag, false, true);
 
-        return parent::stop($status);
+        return parent::stop($status, $options);
     }
 }
