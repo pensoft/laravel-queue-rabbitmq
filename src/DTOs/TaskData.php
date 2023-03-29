@@ -17,7 +17,7 @@ class TaskData extends DataTransferObject
 
     public ?Carbon $updated_at;
 
-    public ?object $data;
+    public object|array|null $data;
 
     public static function create($data): self
     {
