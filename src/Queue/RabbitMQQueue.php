@@ -157,7 +157,7 @@ class RabbitMQQueue extends Queue implements QueueContract
                 'status' => 'PENDING',
                 'type' => $options['taskType'] ?? 'default',
                 'created_at' => Carbon::now(),
-                'data' => $options['data'] ?? []
+                'data' => json_encode($options['data'] ?? [])
             ]), ...$data];
 
             Redis::transaction(function ($redis) use ($correlationId, $options, $data) {
