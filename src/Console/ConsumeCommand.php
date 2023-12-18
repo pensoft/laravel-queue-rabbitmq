@@ -29,6 +29,7 @@ class ConsumeCommand extends WorkCommand
                             {--consumer-tag}
                             {--prefetch-size=0}
                             {--prefetch-count=1000}
+                            {--no-acknowledged=false : Консуматорът трябва изрично да изпрати потвърждение (acknowledgement) обратно към брокера след като обработи съобщението. Ако консуматорът не изпрати такова потвърждение, брокерът няма да маркира съобщението като обработено и ще го запази в опашката (или потенциално ще го достави на друг консуматор). Този подход се използва за гарантиране, че съобщенията не се губят при срив на консуматора или други проблеми при обработката.}
                            ';
 
     protected $description = 'Consume messages';
@@ -41,9 +42,12 @@ class ConsumeCommand extends WorkCommand
         $consumer->setContainer($this->laravel);
         $consumer->setName($this->option('name'));
         $consumer->setConsumerTag($this->consumerTag());
+        $consumer->setNoAcknowledged($this->consumerTag());
         $consumer->setMaxPriority((int) $this->option('max-priority'));
         $consumer->setPrefetchSize((int) $this->option('prefetch-size'));
         $consumer->setPrefetchCount((int) $this->option('prefetch-count'));
+        $noAck = $this->option('no-acknowledged') === 'true';
+        $consumer->setNoAcknowledged($noAck);
 
         parent::handle();
     }
