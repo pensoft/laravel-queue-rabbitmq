@@ -35,6 +35,8 @@ class Consumer extends Worker
     /** @var object|null */
     protected $currentJob;
 
+    protected $noAcknowledged = false;
+
     public function setContainer(Container $value): void
     {
         $this->container = $value;
@@ -58,6 +60,16 @@ class Consumer extends Worker
     public function setPrefetchCount(int $value): void
     {
         $this->prefetchCount = $value;
+    }
+
+    public function setNoAcknowledged(bool $value): void
+    {
+        $this->noAcknowledged = $value;
+    }
+
+    protected function getNoAcknowledged(): bool
+    {
+        return $this->noAcknowledged;
     }
 
     /**
@@ -100,7 +112,7 @@ class Consumer extends Worker
             $queue,
             $this->consumerTag,
             false,
-            false,
+            $this->getNoAcknowledged(),
             false,
             false,
             function (AMQPMessage $message) use ($connection, $options, $connectionName, $queue, $jobClass, &$jobsProcessed): void {
