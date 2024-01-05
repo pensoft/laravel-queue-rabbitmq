@@ -90,7 +90,8 @@ class RabbitMQQueue extends Queue implements QueueContract
         array $options = []
     ) {
         $this->connection = $connection;
-        $this->channel = $connection->channel();
+        $this->getChannel(true);
+        //$this->channel = $connection->channel();
         $this->default = $default;
         $this->options = $options;
     }
@@ -139,7 +140,9 @@ class RabbitMQQueue extends Queue implements QueueContract
 
         [$message, $correlationId] = $this->createMessage($payload, $attempts, $options);
 
-        $this->channel->basic_publish($message, $exchange, $destination, false, false);
+        //$this->channel->basic_publish($message, $exchange, $destination, false, false);
+
+        $this->publishBasic($message, $exchange, $destination, true);
 
         if(isset($options['withReply']) && $options['withReply']) {
 
@@ -216,7 +219,8 @@ class RabbitMQQueue extends Queue implements QueueContract
         [$message, $correlationId] = $this->createMessage($payload, $attempts);
 
         // Publish directly on the delayQueue, no need to publish trough an exchange.
-        $this->channel->basic_publish($message, null, $destination, false, false);
+        //$this->channel->basic_publish($message, null, $destination, false, false);
+        $this->publishBasic($message, null, $destination, true);
 
         return $correlationId;
     }
@@ -232,7 +236,7 @@ class RabbitMQQueue extends Queue implements QueueContract
             $this->bulkRaw($this->createPayload($job, $queue, $data), $queue, ['job' => $job]);
         }
 
-        $this->channel->publish_batch();
+        $this->getChannel()->publish_batch();
     }
 
     /**
@@ -250,7 +254,7 @@ class RabbitMQQueue extends Queue implements QueueContract
 
         [$message, $correlationId] = $this->createMessage($payload, $attempts);
 
-        $this->channel->batch_basic_publish($message, $exchange, $destination);
+        $this->getChannel()->batch_basic_publish($message, $exchange, $destination);
 
         return $correlationId;
     }
@@ -268,7 +272,7 @@ class RabbitMQQueue extends Queue implements QueueContract
             $job = $this->getJobClass();
 
             /** @var AMQPMessage|null $message */
-            if ($message = $this->channel->basic_get($queue)) {
+            if ($message = $this->getChannel()->basic_get($queue)) {
                 return $this->currentJob = new $job(
                     $this->container,
                     $this,
@@ -283,7 +287,7 @@ class RabbitMQQueue extends Queue implements QueueContract
             if ($exception->amqp_reply_code === 404) {
                 // Because of the channel exception the channel was closed and removed.
                 // We have to open a new channel. Because else the worker(s) are stuck in a loop, without processing.
-                $this->channel = $this->connection->channel();
+                $this->getChannel(true);
 
                 return null;
             }
@@ -305,9 +309,18 @@ class RabbitMQQueue extends Queue implements QueueContract
     /**
      * @return AMQPChannel
      */
-    public function getChannel(): AMQPChannel
+    public function getChannel($forceNew = false): AMQPChannel
     {
+        if (! $this->channel || $forceNew) {
+            $this->channel = $this->createChannel();
+        }
+
         return $this->channel;
+    }
+
+    protected function createChannel(): AMQPChannel
+    {
+        return $this->getConnection()->channel();
     }
 
     /**
@@ -393,7 +406,7 @@ class RabbitMQQueue extends Queue implements QueueContract
             return;
         }
 
-        $this->channel->exchange_declare(
+        $this->getChannel()->exchange_declare(
             $name,
             $type,
             false,
@@ -422,7 +435,7 @@ class RabbitMQQueue extends Queue implements QueueContract
         $idx = array_search($name, $this->exchanges);
         unset($this->exchanges[$idx]);
 
-        $this->channel->exchange_delete(
+        $this->getChannel()->exchange_delete(
             $name,
             $unused
         );
@@ -473,7 +486,7 @@ class RabbitMQQueue extends Queue implements QueueContract
         if ($this->isQueueDeclared($name)) {
             return;
         }
-        return $this->channel->queue_declare(
+        return $this->getChannel()->queue_declare(
             $name,
             false,
             $durable,
@@ -517,7 +530,7 @@ class RabbitMQQueue extends Queue implements QueueContract
             return;
         }
 
-        $this->channel->queue_delete($name, $if_unused, $if_empty);
+        $this->getChannel()->queue_delete($name, $if_unused, $if_empty);
     }
 
     /**
@@ -538,7 +551,7 @@ class RabbitMQQueue extends Queue implements QueueContract
             return;
         }
 
-        $this->channel->queue_bind($queue, $exchange, $routingKey);
+        $this->getChannel()->queue_bind($queue, $exchange, $routingKey);
     }
 
     /**
@@ -563,7 +576,7 @@ class RabbitMQQueue extends Queue implements QueueContract
      */
     public function ack(RabbitMQJob $job): void
     {
-        $this->channel->basic_ack($job->getRabbitMQMessage()->getDeliveryTag());
+        $this->getChannel()->basic_ack($job->getRabbitMQMessage()->getDeliveryTag());
     }
 
     /**
@@ -576,7 +589,7 @@ class RabbitMQQueue extends Queue implements QueueContract
      */
     public function reject(RabbitMQJob $job, bool $requeue = false): void
     {
-        $this->channel->basic_reject($job->getRabbitMQMessage()->getDeliveryTag(), $requeue);
+        $this->getChannel()->basic_reject($job->getRabbitMQMessage()->getDeliveryTag(), $requeue);
     }
 
     /**
@@ -877,7 +890,7 @@ class RabbitMQQueue extends Queue implements QueueContract
         }
 
         // Create a queue for amq.direct publishing.
-        return $this->exclusiveDeclareQueue($destination, $this->channel);
+        return $this->exclusiveDeclareQueue($destination, $this->getChannel());
         //return $this->declareQueue($destination, true, false, $this->getQueueArguments($destination));
     }
 
@@ -898,5 +911,18 @@ class RabbitMQQueue extends Queue implements QueueContract
         $exchangeType = $this->getExchangeType(Arr::get($options, 'exchange_type'));
 
         return [$destination, $exchange, $exchangeType, $attempts];
+    }
+
+    protected function publishBasic($msg, $exchange = '', $destination = '', $mandatory = false, $immediate = false, $ticket = null): void
+    {
+        $this->getChannel()->basic_publish($msg, $exchange, $destination, $mandatory, $immediate, $ticket);
+    }
+
+    protected function reconnect(): void
+    {
+        // Reconnects using the original connection settings.
+        $this->getConnection()->reconnect();
+        // Create a new main channel because all old channels are removed.
+        $this->getChannel(true);
     }
 }
