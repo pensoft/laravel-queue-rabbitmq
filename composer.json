@@ -4,14 +4,13 @@
   "license": "MIT",
   "authors": [
     {
-      "name": "Scalwest ltd",
-      "email": "nikolay.baldziev@scalewest.com"
+      "name": "Pensoft",
+      "email": "s.demirov@pensoft.net"
     }
   ],
   "require": {
     "php": "^8.0",
     "ext-json": "*",
-    "illuminate/queue": "^9.0",
     "php-amqplib/php-amqplib": "^3.0"
   },
   "require-dev": {
