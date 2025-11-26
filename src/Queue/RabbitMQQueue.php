@@ -781,8 +781,7 @@ class RabbitMQQueue extends Queue implements QueueContract, RabbitMQQueueContrac
         }
 
         // Create a queue for amq.direct publishing.
-        return $this->exclusiveDeclareQueue($destination, $this->channel);
-        //return $this->declareQueue($destination, true, false, $this->getQueueArguments($destination));
+        $this->exclusiveDeclareQueue($destination, $this->channel);
     }
 
     /**
