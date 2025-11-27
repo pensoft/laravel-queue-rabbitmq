@@ -59,14 +59,14 @@ class RabbitMQQueue extends Queue implements QueueContract, RabbitMQQueueContrac
     /**
      * Holds the Configuration
      */
-    protected QueueConfig $config;
+    protected QueueConfig $queueConfig;
 
     /**
      * RabbitMQQueue constructor.
      */
     public function __construct(QueueConfig $config)
     {
-        $this->config = $config;
+        $this->queueConfig = $config;
         $this->dispatchAfterCommit = $config->isDispatchAfterCommit();
     }
 
@@ -325,7 +325,7 @@ class RabbitMQQueue extends Queue implements QueueContract, RabbitMQQueueContrac
      */
     public function getJobClass(): string
     {
-        $job = $this->getConfig()->getAbstractJob();
+        $job = $this->getQueueConfig()->getAbstractJob();
 
         throw_if(
             ! is_a($job, RabbitMQJob::class, true),
@@ -343,7 +343,7 @@ class RabbitMQQueue extends Queue implements QueueContract, RabbitMQQueueContrac
      */
     public function getQueue($queue = null): string
     {
-        return $queue ?: $this->getConfig()->getQueue();
+        return $queue ?: $this->getQueueConfig()->getQueue();
     }
 
     /**
@@ -578,7 +578,7 @@ class RabbitMQQueue extends Queue implements QueueContract, RabbitMQQueueContrac
             $properties['correlation_id'] = $correlationId;
         }
 
-        if ($this->getConfig()->isPrioritizeDelayed()) {
+        if ($this->getQueueConfig()->isPrioritizeDelayed()) {
             $properties['priority'] = $attempts;
         }
 
@@ -663,16 +663,16 @@ class RabbitMQQueue extends Queue implements QueueContract, RabbitMQQueueContrac
         // Messages with a priority which is higher than the queue's maximum, are treated as if they were
         // published with the maximum priority.
         // Quorum queues does not support priority.
-        if ($this->getConfig()->isPrioritizeDelayed() && ! $this->getConfig()->isQuorum()) {
-            $arguments['x-max-priority'] = $this->getConfig()->getQueueMaxPriority();
+        if ($this->getQueueConfig()->isPrioritizeDelayed() && ! $this->getQueueConfig()->isQuorum()) {
+            $arguments['x-max-priority'] = $this->getQueueConfig()->getQueueMaxPriority();
         }
 
-        if ($this->getConfig()->isRerouteFailed()) {
+        if ($this->getQueueConfig()->isRerouteFailed()) {
             $arguments['x-dead-letter-exchange'] = $this->getFailedExchange();
             $arguments['x-dead-letter-routing-key'] = $this->getFailedRoutingKey($destination);
         }
 
-        if ($this->getConfig()->isQuorum()) {
+        if ($this->getQueueConfig()->isQuorum()) {
             $arguments['x-queue-type'] = 'quorum';
         }
 
@@ -697,7 +697,7 @@ class RabbitMQQueue extends Queue implements QueueContract, RabbitMQQueueContrac
      */
     protected function getExchange(string $exchange = null): string
     {
-        return $exchange ?? $this->getConfig()->getExchange();
+        return $exchange ?? $this->getQueueConfig()->getExchange();
     }
 
     /**
@@ -710,7 +710,7 @@ class RabbitMQQueue extends Queue implements QueueContract, RabbitMQQueueContrac
 
         //return ltrim(sprintf(Arr::get($options, 'exchange_routing_key') ?: '%s', $destination), '.');
 
-        return ltrim(sprintf($this->getConfig()->getExchangeRoutingKey(), $destination), '.');
+        return ltrim(sprintf($this->getQueueConfig()->getExchangeRoutingKey(), $destination), '.');
     }
 
     /**
@@ -718,7 +718,7 @@ class RabbitMQQueue extends Queue implements QueueContract, RabbitMQQueueContrac
      */
     protected function getExchangeType(string $type = null): string
     {
-        $constant = AMQPExchangeType::class.'::'.Str::upper($type ?: $this->getConfig()->getExchangeType());
+        $constant = AMQPExchangeType::class.'::'.Str::upper($type ?: $this->getQueueConfig()->getExchangeType());
 
         return defined($constant) ? constant($constant) : AMQPExchangeType::DIRECT;
     }
@@ -728,7 +728,7 @@ class RabbitMQQueue extends Queue implements QueueContract, RabbitMQQueueContrac
      */
     protected function getFailedExchange(string $exchange = null): string
     {
-        return $exchange ?? $this->getConfig()->getFailedExchange();
+        return $exchange ?? $this->getQueueConfig()->getFailedExchange();
     }
 
     /**
@@ -737,7 +737,7 @@ class RabbitMQQueue extends Queue implements QueueContract, RabbitMQQueueContrac
      */
     protected function getFailedRoutingKey(string $destination): string
     {
-        return ltrim(sprintf($this->getConfig()->getFailedRoutingKey(), $destination), '.');
+        return ltrim(sprintf($this->getQueueConfig()->getFailedRoutingKey(), $destination), '.');
     }
 
     /**
@@ -799,9 +799,9 @@ class RabbitMQQueue extends Queue implements QueueContract, RabbitMQQueueContrac
         return [$destination, $exchange, $exchangeType, $attempts];
     }
 
-    protected function getConfig(): QueueConfig
+    public function getQueueConfig(): QueueConfig
     {
-        return $this->config;
+        return $this->queueConfig;
     }
 
     protected function publishBasic($msg, $exchange = '', $destination = '', $mandatory = false, $immediate = false, $ticket = null): void
