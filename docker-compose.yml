@@ -2,6 +2,35 @@ version: '3.7'
 
 services:
 
+  # PHP 8.3 test runner for Laravel 13. Shares the rabbitmq network namespace
+  # so the suite's hardcoded 127.0.0.1 (see phpunit.xml.dist) reaches RabbitMQ.
+  # Run with:  docker compose run --rm tests
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PHP_VERSION: "8.3"
+    depends_on:
+      - rabbitmq
+    network_mode: "service:rabbitmq"
+    volumes:
+      - ".:/app"
+    working_dir: /app
+    environment:
+      LARAVEL_VERSION: "^13.0"
+    command:
+      - bash
+      - -c
+      - |
+        set -e
+        composer update --with="laravel/framework:$${LARAVEL_VERSION}" --prefer-dist --no-interaction --no-progress
+        echo "Waiting for RabbitMQ on 127.0.0.1:5672..."
+        until (echo > /dev/tcp/127.0.0.1/5672) 2>/dev/null; do sleep 2; done
+        echo "RabbitMQ is up. Running Pint (non-blocking) + PHPUnit..."
+        vendor/bin/pint --test || echo "NOTE: Pint reported style issues (non-blocking)."
+        vendor/bin/phpunit
+
   rabbitmq:
     image: rabbitmq:3.8
     environment:
