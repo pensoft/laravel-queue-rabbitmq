@@ -4,11 +4,13 @@
 
 namespace VladimirYuldashev\LaravelQueueRabbitMQ\Queue;
 
+use Carbon\Carbon;
 use ErrorException;
 use Exception;
 use Illuminate\Contracts\Queue\Queue as QueueContract;
 use Illuminate\Queue\Queue;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Str;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AbstractConnection;
@@ -22,6 +24,7 @@ use PhpAmqpLib\Wire\AMQPTable;
 use RuntimeException;
 use Throwable;
 use VladimirYuldashev\LaravelQueueRabbitMQ\Contracts\RabbitMQQueueContract;
+use VladimirYuldashev\LaravelQueueRabbitMQ\DTOs\TaskData;
 use VladimirYuldashev\LaravelQueueRabbitMQ\Queue\Jobs\RabbitMQJob;
 
 class RabbitMQQueue extends Queue implements QueueContract, RabbitMQQueueContract
@@ -159,24 +162,29 @@ class RabbitMQQueue extends Queue implements QueueContract, RabbitMQQueueContrac
         //$this->channel->basic_publish($message, $exchange, $destination, false, false);
         $this->publishBasic($message, $exchange, $destination, true);
 
-        if(isset($options['withReply']) && $options['withReply']) {
-
+        if (isset($options['withReply']) && $options['withReply']) {
+            // Task record read by the event-dispatcher (GET /tasks, RpcConsumer): newest first,
+            // with type, creation time and the caller's data. task:<id> holds the raw user id.
             $data = Redis::get('user:'.$options['user']->id);
-            if($data){
+            if ($data) {
                 $data = $this->unserialize($data);
             } else {
                 $data = [];
             }
-            $data = [...$data, [
+            $data = [new TaskData([
                 'task_id' => $correlationId,
-                'status' => 'PENDING'
-            ]];
+                'status' => 'PENDING',
+                'type' => $options['taskType'] ?? 'default',
+                'created_at' => Carbon::now(),
+                'data' => $options['data'] ?? null,
+            ]), ...$data];
 
             Redis::transaction(function ($redis) use ($correlationId, $options, $data) {
-                $redis->setex('task:'.$correlationId, 60*60*24*30, $this->serialize($options['user']->id));
+                $redis->setex('task:'.$correlationId, 60 * 60 * 24 * 30, $options['user']->id);
                 $redis->set('user:'.$options['user']->id, $this->serialize($data));
             });
         }
+
         return $correlationId;
     }
 
